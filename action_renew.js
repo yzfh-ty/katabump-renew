@@ -2028,21 +2028,21 @@ async function runMain() {
                     const modalText = await getLocatorText(modal);
                     console.log(`[Modal] 弹窗文本预览: ${modalText.substring(0, 200)}`);
 
-                    // 识别弹窗验证类型：ALTCHA / CF Turnstile / 无，非 CF 时跳过
-                    // 只用强特征，限定当前弹窗
-                    const hasCfInModal = await modal.locator('.cf-turnstile, iframe[src*="challenges.cloudflare.com"]').count().catch(() => 0) > 0;
-                    const hasAltchaInModal2 = /Protected by ALTCHA/i.test(modalText)
-                        || await modal.locator('altcha-widget, [data-altcha], .altcha').count().catch(() => 0) > 0;
-                    console.log(`[Renew阶段] 弹窗验证类型: ${hasAltchaInModal2 ? 'ALTCHA' : hasCfInModal ? 'CF Turnstile' : '无'}`);
+                    // // 识别弹窗验证类型：ALTCHA / CF Turnstile / 无，非 CF 时跳过
+                    // // 只用强特征，限定当前弹窗
+                    // const hasCfInModal = await modal.locator('.cf-turnstile, iframe[src*="challenges.cloudflare.com"]').count().catch(() => 0) > 0;
+                    // const hasAltchaInModal2 = /Protected by ALTCHA/i.test(modalText)
+                        // || await modal.locator('altcha-widget, [data-altcha], .altcha').count().catch(() => 0) > 0;
+                    // console.log(`[Renew阶段] 弹窗验证类型: ${hasAltchaInModal2 ? 'ALTCHA' : hasCfInModal ? 'CF Turnstile' : '无'}`);
 
-                    if (hasCfInModal && !hasAltchaInModal2) {
-                        const turnstileResult = await solveTurnstileIfPresent(page, "Renew阶段", 15, 6000);
-                        console.log(`[Renew阶段] Turnstile 检测结果: ${turnstileResult ? '已处理' : '未检测到或无需点击'}`);
-                    } else if (hasAltchaInModal2) {
-                        console.log('[Renew阶段] ALTCHA 验证，由下方 ALTCHA 逻辑处理，跳过 CF Turnstile 检测。');
-                    } else {
-                        console.log('[Renew阶段] 未检测到验证码类型，跳过。');
-                    }
+                    // if (hasCfInModal && !hasAltchaInModal2) {
+                        // const turnstileResult = await solveTurnstileIfPresent(page, "Renew阶段", 15, 6000);
+                        // console.log(`[Renew阶段] Turnstile 检测结果: ${turnstileResult ? '已处理' : '未检测到或无需点击'}`);
+                    // } else if (hasAltchaInModal2) {
+                        // console.log('[Renew阶段] ALTCHA 验证，由下方 ALTCHA 逻辑处理，跳过 CF Turnstile 检测。');
+                    // } else {
+                        // console.log('[Renew阶段] 未检测到验证码类型，跳过。');
+                    // }
                     // 点击确认 Renew 前，读取旧 Expiry
                     const oldExpiry = await readExpiryDate(page);
                     console.log(`[Expiry] 续期前 Expiry: ${oldExpiry || '未读取到'}`);
@@ -2068,45 +2068,45 @@ async function runMain() {
                         break;
                     }
 
-                    // 【ALTCHA 前置检测】modal text 含 ALTCHA 关键词时，必须先完成 checkbox 才能点 confirm
-                    const hasAltchaInModal = /Protected by ALTCHA/i.test(modalText)
-                        || await modal.locator('altcha-widget, [data-altcha], .altcha').count().catch(() => 0) > 0;
-                    if (hasAltchaInModal) {
-                        console.log('[ALTCHA] Modal 检测到 ALTCHA/checkbox 验证，先完成验证再点 confirm。');
-                        const cbCheckedBefore = await isAltchaCheckboxChecked(page, modal);
-                        console.log(`[ALTCHA] checkbox checked before click: ${cbCheckedBefore}`);
+                    // // 【ALTCHA 前置检测】modal text 含 ALTCHA 关键词时，必须先完成 checkbox 才能点 confirm
+                    // const hasAltchaInModal = /Protected by ALTCHA/i.test(modalText)
+                        // || await modal.locator('altcha-widget, [data-altcha], .altcha').count().catch(() => 0) > 0;
+                    // if (hasAltchaInModal) {
+                        // console.log('[ALTCHA] Modal 检测到 ALTCHA/checkbox 验证，先完成验证再点 confirm。');
+                        // const cbCheckedBefore = await isAltchaCheckboxChecked(page, modal);
+                        // console.log(`[ALTCHA] checkbox checked before click: ${cbCheckedBefore}`);
 
-                        if (!cbCheckedBefore) {
-                            console.log('[ALTCHA] trying click strategy: auto');
-                            const cbClicked = await tryClickCaptchaCheckbox(page, modal);
-                            if (cbClicked) {
-                                console.log('[ALTCHA] 自动点击完成，等待 3 秒验证...');
-                                await page.waitForTimeout(3000);
-                                const cbCheckedAfter = await isAltchaCheckboxChecked(page, modal);
-                                console.log(`[ALTCHA] checkbox checked after click: ${cbCheckedAfter}`);
-                                if (!cbCheckedAfter) {
-                                    console.log('[ALTCHA] 点击后 checkbox 仍未勾选，标记 captcha_required。');
-                                    runStatus = 'captcha_required';
-                                    blockMessage = 'ALTCHA checkbox click did not result in checked state';
-                                    renewSuccess = false;
-                                    const photoDir = await ensureScreenshotsDir();
-                                    await dumpDebugSnapshot(page, `captcha_required_${attempt}`);
-                                    break;
-                                }
-                                console.log('[ALTCHA] ✅ Checkbox 已勾选，可以点击 confirm。');
-                            } else {
-                                console.log('[ALTCHA] 所有点击策略均失败，标记 captcha_required。');
-                                runStatus = 'captcha_required';
-                                blockMessage = 'ALTCHA checkbox could not be auto-clicked';
-                                renewSuccess = false;
-                                const photoDir = await ensureScreenshotsDir();
-                                await dumpDebugSnapshot(page, `captcha_required_${attempt}`);
-                                break;
-                            }
-                        } else {
-                            console.log('[ALTCHA] checkbox 已经勾选，直接点击 confirm。');
-                        }
-                    }
+                        // if (!cbCheckedBefore) {
+                            // console.log('[ALTCHA] trying click strategy: auto');
+                            // const cbClicked = await tryClickCaptchaCheckbox(page, modal);
+                            // if (cbClicked) {
+                                // console.log('[ALTCHA] 自动点击完成，等待 3 秒验证...');
+                                // await page.waitForTimeout(3000);
+                                // const cbCheckedAfter = await isAltchaCheckboxChecked(page, modal);
+                                // console.log(`[ALTCHA] checkbox checked after click: ${cbCheckedAfter}`);
+                                // if (!cbCheckedAfter) {
+                                    // console.log('[ALTCHA] 点击后 checkbox 仍未勾选，标记 captcha_required。');
+                                    // runStatus = 'captcha_required';
+                                    // blockMessage = 'ALTCHA checkbox click did not result in checked state';
+                                    // renewSuccess = false;
+                                    // const photoDir = await ensureScreenshotsDir();
+                                    // await dumpDebugSnapshot(page, `captcha_required_${attempt}`);
+                                    // break;
+                                // }
+                                // console.log('[ALTCHA] ✅ Checkbox 已勾选，可以点击 confirm。');
+                            // } else {
+                                // console.log('[ALTCHA] 所有点击策略均失败，标记 captcha_required。');
+                                // runStatus = 'captcha_required';
+                                // blockMessage = 'ALTCHA checkbox could not be auto-clicked';
+                                // renewSuccess = false;
+                                // const photoDir = await ensureScreenshotsDir();
+                                // await dumpDebugSnapshot(page, `captcha_required_${attempt}`);
+                                // break;
+                            // }
+                        // } else {
+                            // console.log('[ALTCHA] checkbox 已经勾选，直接点击 confirm。');
+                        // }
+                    // }
 
                     // 点击确认 Renew 按钮
                     const confirmBtn = modal.getByRole('button', { name: 'Renew' });
